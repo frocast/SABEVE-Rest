@@ -1,6 +1,21 @@
-runtime: python
+runtime: custom
 env: flex
-entrypoint: gunicorn -b :$PORT main:app
+entrypoint: custom
 
 runtime_config:
   python_version: 2
+
+#[START env]
+env_variables:
+    # Replace user, password, database, and instance connection name with the values obtained
+    # when configuring your Cloud SQL instance.
+    SQLALCHEMY_DATABASE_URI: >-
+      mysql+pymysql://root:p3nt35t1ng@/aula_virtual?unix_socket=/cloudsql/sabeve-18:us-central1:dbsabeve
+#[END env]
+
+#[START cloudsql_settings]
+# Replace project and instance with the values obtained  when configuring your
+# Cloud SQL instance. export SQLALCHEMY_DATABASE_URI=sabeve-18:us-central1:dbsabeve
+beta_settings:
+    cloud_sql_instances: sabeve-18:us-central1:dbsabeve
+#[END cloudsql_settings]
