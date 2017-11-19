@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 # [START app]
+
+# export SQLALCHEMY_DATABASE_URI=mysql+pymysql://root:p3nt35t1ng@127.0.0.1/aula_virtual
 """ Comentario"""
 import logging
 import datetime
@@ -100,7 +102,7 @@ class Biblioteca(db.Model):
     idioma = db.Column(db.String(20))
     resena = db.Column(db.String(5000))
     link = db.Column(db.String(500))
-    portada = db.Column(db.String(500))       
+    portada = db.Column(db.String(5000))       
 
     def __init__(self, titulo="", autor="", ISSNISBN="", tipo="", editorial="", fecha=0, idioma="", resena="", link="", portada=""):
         self.titulo = titulo
@@ -276,12 +278,26 @@ def token_required(f):
 def inicio_api(current_user):
     return  jsonify({"":""})
 
+@app.route('/api/v1.0/login/')
+def login_api():
+    auth = request.get_json()
+    
+    if not auth or not auth.get('email') or not auth.get('password'):
+        return make_response('sin verificar', 401, {'WWW-Authenticate': 'Basic realm="Login Required!"'})
+    
+    usuario = Usuarios.query.filter_by(email=auth.get('email')).first()
+    if not usuario:
+        return make_response('sin verificar', 401, {'WWW-Authenticate': 'Basic realm="Login Required!"'})
+        
+    if usuario.pasw == auth.get('password'):
+        token = jwt.encode({'email':usuario.email, 'nombre':usuario.Nombre ,'exp': datetime.datetime.utcnow()+datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        return jsonify({'token': token.decode('UTF-8')})        
+
+    return make_response('sin verificar', 401, {'WWW-Authenticate': 'Basic realm="Login Required!"'})
+
 @app.route('/api/v1.0/usuarios/')
 @token_required
 def usuarios_api(current_user):
-    
-    if current_user.knd == "Alumno":
-        return jsonify({'mensaje':'no cuenta con los permisos necesarios'})
         
     usuarios = Usuarios.query.all()
     return jsonify({"usuarios": [{ "email": usuario.email, 
@@ -324,7 +340,7 @@ def nuevo_usuario_api(current_user):
     password = datos.get('password')
     id_grupo = datos.get('id_grupo')
 
-    usuario = Usuarios(nombre, apellido, email, tipo, fecha_na, institucion, genero, password,id_grupo)        
+    usuario = Usuarios(nombre,apellido,email,tipo,fecha_na,institucion,genero,password,id_grupo)        
     db.session.add(usuario)
     db.session.commit()
     return jsonify({'email':usuario.email}), 201  
@@ -354,42 +370,76 @@ def eliminar_usuarios(current_user, email):
     db.session.commit()
     return jsonify({'mensaje':'Usuario Eliminado'})
 
-@app.route('/api/v1.0/login/')
-def login_api():
-    auth = request.get_json()
-    
-    if not auth or not auth.get('email') or not auth.get('password'):
-        return make_response('sin verificar', 401, {'WWW-Authenticate': 'Basic realm="Login Required!"'})
-    
-    usuario = Usuarios.query.filter_by(email=auth.get('email')).first()
-    if not usuario:
-        return make_response('sin verificar', 401, {'WWW-Authenticate': 'Basic realm="Login Required!"'})
+@app.route('/api/v1.0/biblioteca/')
+def biblioteca_api():
         
-    if usuario.pasw == auth.get('password'):
-        token = jwt.encode({'email':usuario.email, 'nombre':usuario.Nombre ,'exp': datetime.datetime.utcnow()+datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        return jsonify({'token': token.decode('UTF-8')})        
+    libros = Biblioteca.query.all()
+    return jsonify({"Libros": [{ "id": libro.id, 
+                                   "titulo": libro.titulo, 
+                                   "autor": libro.autor, 
+                                   "ISSNISBN": libro.ISSNISBN,
+                                   "tipo": libro.tipo,
+                                   "editorial": libro.editorial,
+                                   "fecha": libro.fecha,
+                                   "idioma": libro.idioma,                                   
+                                   "resena": libro.resena,
+                                   "link": libro.link,
+                                   "portada": libro.portada                                   
+                                   } for libro in libros]})
 
-    return make_response('sin verificar', 401, {'WWW-Authenticate': 'Basic realm="Login Required!"'})
+@app.route('/api/v1.0/biblioteca/<clave>/<idioma>/<fecha_inferior>/<fecha_superior>/')
+def biblioteca_by_id_api(clave,idioma,fecha_inferior,fecha_superior):
+    libros = Biblioteca.query.filter((Biblioteca.titulo==clave) | (Biblioteca.autor==clave) | (Biblioteca.ISSNISBN==clave) | (Biblioteca.idioma==idioma) | (Biblioteca.fecha.between(int(fecha_inferior), int(fecha_superior)))).order_by(Biblioteca.titulo.desc()).all()
+    return jsonify({"Libros": [{ "id": libro.id, 
+                                   "titulo": libro.titulo, 
+                                   "autor": libro.autor, 
+                                   "ISSNISBN": libro.ISSNISBN,
+                                   "tipo": libro.tipo,
+                                   "editorial": libro.editorial,
+                                   "fecha": libro.fecha,
+                                   "idioma": libro.idioma,                                   
+                                   "resena": libro.resena,
+                                   "link": libro.link,
+                                   "portada": libro.portada                                   
+                                   } for libro in libros]})                                 
+
+@app.route('/api/v1.0/biblioteca/', methods=['POST'])
+def nuevo_libro_api():
+    datos = request.get_json()
+
+    titulo = datos.get('titulo') # o titulo = dato['titulo']
+    autor = datos.get('autor')
+    ISSNIBSN = datos.get('ISSNISBN')
+    tipo = datos.get('tipo')
+    editorial = datos.get('editorial')
+    fecha = datos.get('fecha')
+    idioma = datos.get('idioma')
+    resena = datos.get('resena')
+    link = datos.get('link')
+    portada = datos.get('portada')    
+
+    libro = Biblioteca(titulo,autor,ISSNIBSN,tipo,editorial,fecha,idioma,resena,link,portada)        
+    db.session.add(libro)
+    db.session.commit()
+    return jsonify({'libro':libro.titulo}), 201  
 
 @app.errorhandler(404)
 def page_not_found(e):
-    response = make_response('Page Not Found ', 404)
-    response.headers['Content-type'] = 'aplication/json'    
+    response = make_response(jsonify({'mensaje':'{}'.format(e)}), 404)
+    response.headers['Content-type'] = 'application/json'    
     return response
 
 @app.errorhandler(400)
 def bad_request(e):
-    response = make_response( jsonify({'mensaje': 'Bad Request'}), 400)
-    response.headers['Content-type'] = 'aplication/json'    
+    response = make_response(jsonify({'mensaje':'{}'.format(e)}), 400)
+    response.headers['Content-type'] = 'application/json'    
     return response
 
 @app.errorhandler(500)
 def server_error(e):
-    logging.exception('An error occurred during a request.')
-    return """
-    An internal error occurred: <pre>{}</pre>
-    See logs for full stacktrace.
-    """.format(e), 500
+    response = make_response(jsonify({'mensaje':'{}'.format(e)}), 500)
+    response.headers['Content-type'] = 'application/json'    
+    return response
 
 if __name__ == '__main__':
     # This is used when running locally. Gunicorn is used to run the
